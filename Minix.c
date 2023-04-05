@@ -80,3 +80,32 @@ int decrypt_file(const char* input_filename, const char* output_filename, RSA* k
 
     return 0;
 }
+
+    // Generate RSA key pair
+    RSA* generate_key_pair() {
+    RSA* key = RSA_new();
+    BIGNUM* bn = BN_new();
+
+    BN_set_word(bn, PUB_EXP);
+
+    RSA_generate_key_ex(key, KEY_LENGTH, bn, NULL);
+    BN_free(bn);
+
+    return key;
+}
+
+int main() {
+    // Generate RSA key pair
+    RSA* key = generate_key_pair();
+
+    // Encrypt input file
+    encrypt_file("input.txt", "encrypted.bin", key);
+
+    // Decrypt encrypted file
+    decrypt_file("encrypted.bin", "output.txt", key);
+
+    // Free RSA key pair
+    RSA_free(key);
+
+    return 0;
+}
