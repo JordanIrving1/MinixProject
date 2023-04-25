@@ -106,10 +106,10 @@ int main() {
     RSA* key = generate_key_pair();
 
     // Encrypt input file
-    encrypt_file("input.txt", "encrypted.bin", key);
+    encrypt_file_thread("input.txt", "encrypted.bin", key);
 
     // Decrypt encrypted file
-    decrypt_file("encrypted.bin", "output.txt", key);
+    decrypt_file_thread("encrypted.bin", "output.txt", key);
 
     // Free RSA key pair
     RSA_free(key);
