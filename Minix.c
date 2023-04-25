@@ -1,62 +1,81 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/rsa.h> // Include RSA library from OpenSSL
+#include <openssl/rsa.h>
 #include <openssl/pem.h>
+#include <pthread.h> // Include pthread library for multi-threading
 
-#define KEY_LENGTH  2048 // Define key length
-#define PUB_EXP     3 // Define public exponent
-#define BLOCK_SIZE  245 // Define block size for encryption/decryption
+#define KEY_LENGTH  2048
+#define PUB_EXP     3
+#define BLOCK_SIZE  245
 
-// Encrypt a file using RSA
-int encrypt_file(const char* input_filename, const char* output_filename, RSA* key) {
-    FILE* input_file = fopen(input_filename, "rb"); // Open input file for reading in binary mode
-    if (input_file == NULL) {
-        printf("Failed to open input file %s\n", input_filename);
-        return -1;
-    }
+struct file_data {
+    const char* input_filename;
+    const char* output_filename;
+    RSA* key;
+};
 
-    FILE* output_file = fopen(output_filename, "wb"); // Open output file for writing in binary mode
-    if (output_file == NULL) {
-        printf("Failed to open output file %s\n", output_filename);
-        fclose(input_file); // Close input file if failed to open output file
-        return -1;
-    }
+// Thread function to encrypt a file
+void* encrypt_file_thread(void* arg) {
+    struct file_data* data = (struct file_data*)arg;
+    const char* input_filename = data->input_filename;
+    const char* output_filename = data->output_filename;
+    RSA* key = data->key;
 
-    unsigned char input_block[BLOCK_SIZE];
-    unsigned char output_block[KEY_LENGTH / 8];
-
-    int bytes_read = 0;
-    while ((bytes_read = fread(input_block, 1, BLOCK_SIZE, input_file)) > 0) { // Read input file in block size
-        int encrypted_size = RSA_public_encrypt(bytes_read, input_block, output_block, key, RSA_PKCS1_PADDING); // Encrypt input block using RSA public key
-        if (encrypted_size == -1) {
-            printf("Failed to encrypt input block\n");
-            fclose(input_file); // Close input file if failed to encrypt input block
-            fclose(output_file); // Close output file if failed to encrypt input block
-            return -1;
-        }
-
-        fwrite(output_block, 1, encrypted_size, output_file); // Write encrypted block to output file
-    }
-
-    fclose(input_file);
-    fclose(output_file);
-
-    return 0;
-
-// Decrypt a file using RSA
-int decrypt_file(const char* input_filename, const char* output_filename, RSA* key) {
     FILE* input_file = fopen(input_filename, "rb");
     if (input_file == NULL) {
         printf("Failed to open input file %s\n", input_filename);
-        return -1;
+        return NULL;
     }
 
     FILE* output_file = fopen(output_filename, "wb");
     if (output_file == NULL) {
         printf("Failed to open output file %s\n", output_filename);
         fclose(input_file);
-        return -1;
+        return NULL;
+    }
+
+    unsigned char input_block[BLOCK_SIZE];
+    unsigned char output_block[KEY_LENGTH / 8];
+
+    int bytes_read = 0;
+    while ((bytes_read = fread(input_block, 1, BLOCK_SIZE, input_file)) > 0) {
+        int encrypted_size = RSA_public_encrypt(bytes_read, input_block, output_block, key, RSA_PKCS1_PADDING);
+        if (encrypted_size == -1) {
+            printf("Failed to encrypt input block\n");
+            fclose(input_file);
+            fclose(output_file);
+            return NULL;
+        }
+
+        fwrite(output_block, 1, encrypted_size, output_file);
+    }
+
+    fclose(input_file);
+    fclose(output_file);
+
+    printf("Encryption completed for file %s\n", input_filename);
+    return NULL;
+}
+
+// Thread function to decrypt a file
+void* decrypt_file_thread(void* arg) {
+    struct file_data* data = (struct file_data*)arg;
+    const char* input_filename = data->input_filename;
+    const char* output_filename = data->output_filename;
+    RSA* key = data->key;
+
+    FILE* input_file = fopen(input_filename, "rb");
+    if (input_file == NULL) {
+        printf("Failed to open input file %s\n", input_filename);
+        return NULL;
+    }
+
+    FILE* output_file = fopen(output_filename, "wb");
+    if (output_file == NULL) {
+        printf("Failed to open output file %s\n", output_filename);
+        fclose(input_file);
+        return NULL;
     }
 
     unsigned char input_block[KEY_LENGTH / 8];
@@ -69,7 +88,7 @@ int decrypt_file(const char* input_filename, const char* output_filename, RSA* k
             printf("Failed to decrypt input block\n");
             fclose(input_file);
             fclose(output_file);
-            return -1;
+            return NULL;
         }
 
         fwrite(output_block, 1, decrypted_size, output_file);
@@ -78,20 +97,8 @@ int decrypt_file(const char* input_filename, const char* output_filename, RSA* k
     fclose(input_file);
     fclose(output_file);
 
-    return 0;
-}
-
-    // Generate RSA key pair
-    RSA* generate_key_pair() {
-    RSA* key = RSA_new();
-    BIGNUM* bn = BN_new();
-
-    BN_set_word(bn, PUB_EXP);
-
-    RSA_generate_key_ex(key, KEY_LENGTH, bn, NULL);
-    BN_free(bn);
-
-    return key;
+    printf("Decryption completed for file %s\n", input_filename);
+    return NULL;
 }
 
 int main() {
